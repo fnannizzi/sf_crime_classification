@@ -1,13 +1,52 @@
 #!/usr/bin/python
 
-import re
-import os
-import shutil
-import unittest
+from collections import namedtuple
+from numpy import loadtxt
+from string_replace_in_file import string_replace_in_file
 
-class Preprocessing:
-    # TODO: This is terrible and redundant but got frustrated trying to combine these
-    # into one regex, so will come back to this later.
+class PreprocessingCreateLabels:
+    def __init__(self):
+        self.data = namedtuple('crime_data', ['category', 'district', 'address'])
+
+    def create_and_write_labels(self, data_filename, labels_filename):
+        self.load_data(data_filename)
+        self.create_label_sets()
+        self.write_label_sets_to_file(labels_filename)
+
+    def load_data(self, filename):
+        dtype = [('category', 'S30'), ('pd_district', 'S20'), ('address', 'S50')]
+        lowercase_converter = lambda x: x.lower()
+        converters = {1: lowercase_converter, 4: lowercase_converter,
+                      6: lowercase_converter}
+        usecols = (1, 4, 6)
+
+        self.data.category, self.data.district, self.data.address = \
+            loadtxt(filename, dtype=dtype, delimiter=',',
+                    converters=converters, skiprows=1, usecols=usecols, unpack=True)
+
+    def create_label_sets(self):
+        # TODO: rewrite this to return labels list, don't need to make these class members
+        self.category_text_labels = list(set(self.data.category))
+        self.district_text_labels = list(set(self.data.district))
+        self.address_text_labels = list(set(self.data.address))
+
+    @staticmethod
+    def write_list_to_file(opened_file, string_list, description):
+        opened_file.write(description + ' ' + str(len(string_list)) + '\n')
+        for s in string_list:
+            opened_file.write(s + '\n')
+
+    def write_label_sets_to_file(self, filename):
+        with open(filename, 'w') as opened_file:
+            self.write_list_to_file(opened_file, self.category_text_labels, 'category')
+            self.write_list_to_file(opened_file, self.district_text_labels, 'district')
+            self.write_list_to_file(opened_file, self.address_text_labels, 'address')
+
+
+# Because commas are used as a column delimiter in this dataset, we need to remove commas that appear
+# within columns. For instance, the description field often contains commas which are not intended as
+# delimiters.
+class PreprocessingRemoveCommas:
     text_pattern = ["([a-zA-Z0-9<>$&;\.\(\)/\- ]+)",
                     "([a-zA-Z0-9<>$&;\.\(\)/\-, ]+)"]
     match_pattern = [r"\"" + text_pattern[0] + "," + text_pattern[1] + "\"",
@@ -17,44 +56,24 @@ class Preprocessing:
 
     def do_match_and_replace(self, filename):
         for pattern_index in range(0, self.max_num_commas):
-            self.replace_in_file(filename, 
-                                 self.match_pattern[0],
-                                 self.replace_pattern)
-        self.replace_in_file(filename,
-                             self.match_pattern[1],
-                             self.replace_pattern)
+            string_replace_in_file(filename,
+                                   self.match_pattern[0],
+                                   self.replace_pattern)
+        string_replace_in_file(filename,
+                               self.match_pattern[1],
+                               self.replace_pattern)
 
-    # Help from http://stackoverflow.com/questions/1597649/replace-strings-in-files-by-python
-    @staticmethod
-    def replace_in_file(filename, match_pattern, replace_pattern):
-        out_filename = filename + ".tmp"
-        with open(filename) as in_file:
-            out_file = open(out_filename, 'w')
-            for line in in_file:
-                out_file.write(re.sub(match_pattern, replace_pattern, line))
-            out_file.close()
-            os.rename(out_filename, filename)
+def remove_commas(filename):
+    print "Removing commas from " + filename + "..."
+    preprocessingRemoveCommas = PreprocessingRemoveCommas()
+    preprocessingRemoveCommas.do_match_and_replace(filename)
 
-class TestPreprocessing(unittest.TestCase):
+def extract_label_sets(data_filename, labels_filename):
+    print "Extracting label sets from " + data_filename + "..."
+    preprocessingCreateLabels = PreprocessingCreateLabels()
+    preprocessingCreateLabels.create_and_write_labels(data_filename, labels_filename)
 
-    def test_match_and_replace(self):
-        # copy existing testfile so we don't overwrite it
-        shutil.copyfile("unit_test_data/comma_replace_data_test.csv", 
-                        "unit_test_data/comma_replace_data_test_preprocessed.csv")
-
-        preprocessing = Preprocessing()
-        preprocessing.do_match_and_replace("unit_test_data/comma_replace_data_test_preprocessed.csv")
-        
-        post_lines = self.get_lines_from_file("unit_test_data/comma_replace_data_test_preprocessed.csv")
-        gold_lines = self.get_lines_from_file("unit_test_data/comma_replace_data_gold.csv")
-        # loop isn't necessary but makes reading failures much easier
-        for line_index in range(0, len(gold_lines)):
-            self.assertEqual(gold_lines[line_index], post_lines[line_index])
-
-
-    def get_lines_from_file(self, filename):
-        with open(filename) as in_file:
-            lines = in_file.readlines()
-        return lines
-
-
+if __name__ == "__main__":
+    remove_commas("data/train.csv")
+    remove_commas("data/test.csv")
+    extract_label_sets("data/train.csv", "data/text_labels.csv")
