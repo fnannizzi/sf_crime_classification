@@ -24,3 +24,6 @@ class TestPreprocessingRemoveCommas(unittest.TestCase):
         with open(filename) as in_file:
             lines = in_file.readlines()
         return lines
+
+if __name__ == "__main__":
+    unittest.main()
