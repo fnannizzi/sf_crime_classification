@@ -14,11 +14,16 @@ def load_data(category_text_labels, district_text_labels, address_text_labels):
     epoch_date = datetime(1970,1,1)
     datetime_converter = lambda x: (datetime.strptime(x, '%Y-%m-%d %H:%M:%S') - epoch_date).total_seconds()
 
+    # Random forests require numeric input, so convert data inputs to numeric by
+    # making a list of unique inputs and using the index of each input instead.
+    # There is a risk of creating false relationships when doing this - i.e. 
+    # if Tenderloin = 1 and Central = 2, Central appears to be 2*Tenderloin,
+    # which makes no sense.
     category_converter = lambda x: category_text_labels.index(x.lower())
     district_converter = lambda x: district_text_labels.index(x.lower())
     address_converter = lambda x: address_text_labels.index(x.lower())
 
-    # convert day names to uppercase so we can do comparison against data
+    # convert day names to lowercase so we can do comparison against data
     lowercase_days = [day.lower() for day in day_name]
     day_converter = lambda x: lowercase_days.index(x.lower())
 
@@ -57,8 +62,11 @@ def main():
 
     crime_data = load_data(category_text_labels, district_text_labels, address_text_labels)
     features = create_feature_matrix(crime_data)
-    use_random_forest(features, crime_data.category, features[0:10, :])
+
+    # Test using first 10 rows of features, a poor test but enough to make sure things aren't imploding
+    use_random_forest(features, crime_data.category, features[0:10, :], category_text_labels)
 
 
 if __name__ == "__main__":
+    print "Starting up..." 
     main()
